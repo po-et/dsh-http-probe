@@ -1,0 +1,6 @@
+# Dev-only overlay: loads the built plugin by absolute path.
+# Usage: npm run dev   (= dsh web --patch ./dev.cordis.yml)
+# Rebuild with `npm run build` after editing src/, then restart.
+- insert:
+    - id: http-probe-dev
+      name: '/Users/limit/AI/Github/dsh-http-probe/lib/index.js'

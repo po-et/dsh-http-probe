@@ -1,0 +1,3 @@
+- insert:
+    - id: http-probe
+      name: dsh-http-probe
