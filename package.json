@@ -42,5 +42,8 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public"
+  },
+  "engines": {
+    "dsh": ">=0.1.0-rc.6"
   }
 }
