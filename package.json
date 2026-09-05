@@ -38,5 +38,9 @@
     "type": "git",
     "url": "git+https://github.com/po-et/dsh-http-probe.git"
   },
-  "homepage": "https://github.com/po-et/dsh-http-probe#readme"
+  "homepage": "https://github.com/po-et/dsh-http-probe#readme",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
+  }
 }
