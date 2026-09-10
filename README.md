@@ -9,7 +9,7 @@ A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin tha
 > Not on npm yet, so install straight from GitHub. pnpm will ask you to allow this package's build script once (dsh prints the exact line to add); that's the `prepare` step compiling TypeScript.
 
 ```sh
-dsh plugin --profile web add github:po-et/dsh-http-probe
+dsh plugin --profile web add github:im-Captain/dsh-http-probe
 ```
 
 Then ask the agent something like: *"Probe https://example.com and tell me if it's healthy."*
