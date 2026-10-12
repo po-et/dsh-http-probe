@@ -16,7 +16,7 @@ const PROBE_TIMEOUT_MS = 10_000
 export function apply(ctx: Context) {
   ctx.tools.register(defineTool({
     name: 'http_probe',
-    description: 'Probe an HTTP(S) endpoint and report status code, latency and key response headers. Use for quick health checks of APIs and websites. Does not download response bodies.',
+    description: 'Probe an HTTP(S) endpoint and report status code, latency and key response headers. Use for quick health checks of APIs and websites. Cancels unread response bodies after receiving headers.',
     parameters: {
       url: { type: 'string', required: true, description: 'Absolute http(s) URL to probe' },
       method: { type: 'string', description: 'HTTP method to use; defaults to HEAD, retried as GET when the server rejects HEAD with 405' },
@@ -40,6 +40,11 @@ export function apply(ctx: Context) {
           signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
         })
         const latencyMs = Math.round(performance.now() - start)
+        // GET responses may stream indefinitely. Release the body without
+        // consuming it; a body failure must not discard the received headers.
+        if (response.body) {
+          await response.body.cancel().catch(() => {})
+        }
         return { response, latencyMs, method: m }
       }
 

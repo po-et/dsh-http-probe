@@ -1,8 +1,12 @@
 # dsh-http-probe
 
-A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that adds an `http_probe` tool: the agent can check the status code, latency and key response headers of any HTTP(S) endpoint without downloading response bodies. Useful for API health checks and quick "is this site up?" questions.
+A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) plugin that adds an `http_probe` tool: the agent can check the status code, latency and key response headers of any HTTP(S) endpoint without reading response bodies. Useful for API health checks and quick "is this site up?" questions.
 
-一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件，提供 `http_probe` 工具：让 agent 可以探测任意 HTTP(S) 端点的状态码、延迟和关键响应头（不下载响应体）。适合 API 健康检查和"这个服务挂了吗"类问题。
+一个 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 插件，提供 `http_probe` 工具：让 agent 可以探测任意 HTTP(S) 端点的状态码、延迟和关键响应头（不读取响应体）。适合 API 健康检查和"这个服务挂了吗"类问题。
+
+HEAD is the default; a 405 response is retried once as GET. GET bodies are cancelled after the headers arrive, including streaming bodies, so a completed probe does not leave a response downloading until timeout. Latency measures the time to receive the headers. If an unread body has already failed, the received status and headers are still reported.
+
+默认使用 HEAD，遇到 405 时回退一次 GET。获取响应头后会取消 GET 响应体，包括持续流式响应；探测结束即释放响应，延迟统计为获取响应头耗时。未读取的响应体若已失败，仍保留已经收到的状态码和响应头。
 
 ## Install / 安装
 
@@ -19,6 +23,7 @@ Then ask the agent something like: *"Probe https://example.com and tell me if it
 ```sh
 npm install
 npm run build
+npm test        # build and test with local HTTP servers; no external endpoint required
 npm run dev     # dsh web --patch ./dev.cordis.yml, then open http://127.0.0.1:3080
 ```
 
