@@ -19,7 +19,7 @@ export function apply(ctx: Context) {
     description: 'Probe an HTTP(S) endpoint and report status code, latency and key response headers. Use for quick health checks of APIs and websites. Cancels unread response bodies after receiving headers.',
     parameters: {
       url: { type: 'string', required: true, description: 'Absolute http(s) URL to probe' },
-      method: { type: 'string', description: 'HTTP method to use; defaults to HEAD, retried as GET when the server rejects HEAD with 405' },
+      method: { type: 'string', description: 'HTTP method to use; defaults to HEAD, retried once as GET when HEAD is rejected with 405 or not implemented with 501' },
     },
     output: {
       schema: { type: 'string' },
@@ -49,7 +49,7 @@ export function apply(ctx: Context) {
       }
 
       let result = await probe(method)
-      if (result.response.status === 405 && method === 'HEAD') {
+      if (method === 'HEAD' && [405, 501].includes(result.response.status)) {
         result = await probe('GET')
       }
 

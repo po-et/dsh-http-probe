@@ -21,15 +21,15 @@ async function serve(t, handler) {
   return `http://127.0.0.1:${server.address().port}`
 }
 
-for (const method of [undefined, 'GET']) {
-  test(`${method ?? 'HEAD fallback'} releases a streaming GET response after reporting headers`, async (t) => {
+for (const [method, headStatus] of [[undefined, 405], [undefined, 501], ['GET', 405]]) {
+  test(`${method ?? `HEAD ${headStatus} fallback`} releases a streaming GET response after reporting headers`, async (t) => {
     const requests = []
     let resolveClosed
     const closed = new Promise((resolve) => { resolveClosed = resolve })
     const base = await serve(t, (request, response) => {
       requests.push(request.method)
       if (request.method === 'HEAD') {
-        response.writeHead(405)
+        response.writeHead(headStatus)
         response.end()
         return
       }
@@ -68,18 +68,20 @@ test('default HEAD keeps status and headers without a GET retry', async (t) => {
   assert.deepEqual(requests, ['HEAD'])
 })
 
-test('explicit GET reports a 405 without retrying', async (t) => {
-  const requests = []
-  const base = await serve(t, (request, response) => {
-    requests.push(request.method)
-    response.writeHead(405)
-    response.end('method not allowed')
+for (const status of [405, 501]) {
+  test(`explicit GET reports a ${status} without retrying`, async (t) => {
+    const requests = []
+    const base = await serve(t, (request, response) => {
+      requests.push(request.method)
+      response.writeHead(status)
+      response.end('method not allowed')
+    })
+    const result = await registeredTool().execute({ url: base, method: 'get' })
+    assert.match(result, /^GET /)
+    assert.match(result, new RegExp(`status: ${status} `))
+    assert.deepEqual(requests, ['GET'])
   })
-  const result = await registeredTool().execute({ url: base, method: 'get' })
-  assert.match(result, /^GET /)
-  assert.match(result, /status: 405 Method Not Allowed/)
-  assert.deepEqual(requests, ['GET'])
-})
+}
 
 test('redirects report the final URL', async (t) => {
   const base = await serve(t, (request, response) => {
