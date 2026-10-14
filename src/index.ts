@@ -42,8 +42,10 @@ export function apply(ctx: Context) {
         const latencyMs = Math.round(performance.now() - start)
         // GET responses may stream indefinitely. Release the body without
         // consuming it; a body failure must not discard the received headers.
+        // A cloned stream may wait for another reader to finish cancellation,
+        // so start cancellation without delaying the diagnostic result.
         if (response.body) {
-          await response.body.cancel().catch(() => {})
+          void response.body.cancel().catch(() => {})
         }
         return { response, latencyMs, method: m }
       }

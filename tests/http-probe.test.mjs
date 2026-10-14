@@ -109,3 +109,29 @@ test('an already errored body does not discard the received status and headers',
   assert.match(result, /status: 503/)
   assert.match(result, /server: probe-test/)
 })
+
+
+test('cloned streaming response reports headers without waiting for another reader', async (t) => {
+  const base = await serve(t, (_request, response) => {
+    response.writeHead(200, { 'content-type': 'text/plain', server: 'cloned-stream-test' })
+    response.write('streaming body\n')
+    const interval = setInterval(() => response.write('more body\n'), 25)
+    response.on('close', () => clearInterval(interval))
+  })
+  const nativeFetch = globalThis.fetch
+  let otherReader
+  t.mock.method(globalThis, 'fetch', async (...args) => {
+    otherReader = await nativeFetch(...args)
+    return otherReader.clone()
+  })
+  t.after(async () => { await otherReader?.body?.cancel().catch(() => {}) })
+
+  const result = await Promise.race([
+    registeredTool().execute({ url: `${base}/stream`, method: 'GET' }),
+    delay(1000, null),
+  ])
+  assert.notEqual(result, null, 'headers are available but probe waits for the other response reader')
+  assert.match(result, /status: 200 OK/)
+  assert.match(result, /server: cloned-stream-test/)
+  assert.equal(otherReader.body.locked, false)
+})
