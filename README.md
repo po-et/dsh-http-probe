@@ -8,6 +8,10 @@ HEAD is the default; a 405 (method not allowed) or 501 (method not implemented) 
 
 默认使用 HEAD，遇到 405（不允许该方法）或 501（未实现该方法）时回退一次 GET，兼容只实现 GET 的服务。显式 GET 若返回这些状态码，则直接报告，不再重试。获取响应头后会取消探测所持有的 GET 响应体，包括持续流式响应；未共享的响应会及时释放。若中间件克隆了响应体，只取消探测自身的分支；另一位读取者保持其分支开启时，上游仍可能继续下载。延迟统计为获取响应头耗时。未读取的响应体若已失败，仍保留已经收到的状态码和响应头。取消操作会立即发起，但不等待其完成：中间件若克隆了流式响应，取消完成可能依赖另一位读取者，不应因此阻塞探测结果。
 
+Cancelling the Harness tool call also aborts its pending HTTP request and prevents a HEAD-to-GET retry. Each request still has its own 10-second timeout.
+
+取消 Harness 工具调用时，会同时中止尚未完成的 HTTP 请求，并阻止后续 GET 回退。每次请求仍保留独立的 10 秒超时。
+
 ## Install / 安装
 
 > Not on npm yet, so install straight from GitHub. pnpm will ask you to allow this package's build script once (dsh prints the exact line to add); that's the `prepare` step compiling TypeScript.

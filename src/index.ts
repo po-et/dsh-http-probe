@@ -25,7 +25,8 @@ export function apply(ctx: Context) {
       schema: { type: 'string' },
       render: (_args, value) => [{ type: 'text', text: value }],
     },
-    async execute(args) {
+    async execute(args, exec) {
+      const callerSignal = exec?.signal
       const url = new URL(args.url)
       if (url.protocol !== 'http:' && url.protocol !== 'https:') {
         throw new Error(`http_probe only supports http(s) URLs, got: ${url.protocol}`)
@@ -33,11 +34,13 @@ export function apply(ctx: Context) {
       const method = (args.method ?? 'HEAD').toUpperCase()
 
       const probe = async (m: string) => {
+        callerSignal?.throwIfAborted()
         const start = performance.now()
+        const timeoutSignal = AbortSignal.timeout(PROBE_TIMEOUT_MS)
         const response = await fetch(url, {
           method: m,
           redirect: 'follow',
-          signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+          signal: callerSignal ? AbortSignal.any([callerSignal, timeoutSignal]) : timeoutSignal,
         })
         const latencyMs = Math.round(performance.now() - start)
         // GET responses may stream indefinitely. Release the body without
@@ -47,6 +50,7 @@ export function apply(ctx: Context) {
         if (response.body) {
           void response.body.cancel().catch(() => {})
         }
+        callerSignal?.throwIfAborted()
         return { response, latencyMs, method: m }
       }
 

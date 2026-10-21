@@ -135,3 +135,85 @@ test('cloned streaming response reports headers without waiting for another read
   assert.match(result, /server: cloned-stream-test/)
   assert.equal(otherReader.body.locked, false)
 })
+
+test('an already cancelled caller never starts a probe', async (t) => {
+  let requests = 0
+  t.mock.method(globalThis, 'fetch', async () => {
+    requests++
+    return new Response(null, { status: 204 })
+  })
+  const controller = new AbortController()
+  const reason = new DOMException('probe cancelled', 'AbortError')
+  controller.abort(reason)
+  await assert.rejects(registeredTool().execute({ url: 'http://example.test' },
+    { signal: controller.signal }), error => error === reason)
+  assert.equal(requests, 0)
+})
+
+for (const [label, method, headStatus] of [
+  ['HEAD', undefined, undefined], ['GET', 'GET', undefined],
+  ['HEAD 405 fallback', undefined, 405], ['HEAD 501 fallback', undefined, 501],
+]) {
+  test(`caller cancellation closes a pending ${label} request`, async (t) => {
+    const requests = []
+    let markPending, markClosed
+    const pending = new Promise(resolve => { markPending = resolve })
+    const closed = new Promise(resolve => { markClosed = resolve })
+    const base = await serve(t, (request, response) => {
+      requests.push(request.method)
+      if (headStatus && request.method === 'HEAD') {
+        response.writeHead(headStatus)
+        response.end()
+        return
+      }
+      response.on('close', () => markClosed(true))
+      markPending(true)
+      // Hold the headers until the caller cancels the request.
+    })
+    const controller = new AbortController()
+    const args = { url: base, ...(method ? { method } : {}) }
+    const result = registeredTool().execute(args, { signal: controller.signal })
+      .then(() => ({ fulfilled: true }), error => ({ error }))
+    assert.equal(await Promise.race([pending, delay(2000, false)]), true)
+    controller.abort(new DOMException('probe cancelled', 'AbortError'))
+    const outcome = await Promise.race([result, delay(2000, { timedOut: true })])
+    assert.equal(outcome.error?.name, 'AbortError', 'the cancelled probe did not reject promptly')
+    assert.equal(await Promise.race([closed, delay(2000, false)]), true,
+      'the cancelled request kept its connection open')
+    assert.deepEqual(requests, headStatus ? ['HEAD', 'GET'] : [method ?? 'HEAD'])
+  })
+}
+
+for (const headStatus of [405, 501]) {
+  test(`cancellation after HEAD ${headStatus} headers prevents a GET retry`, async (t) => {
+    const requests = []
+    const base = await serve(t, (request, response) => {
+      requests.push(request.method)
+      response.writeHead(request.method === 'HEAD' ? headStatus : 200)
+      response.end()
+    })
+    const controller = new AbortController()
+    const nativeFetch = globalThis.fetch
+    t.mock.method(globalThis, 'fetch', async (...args) => {
+      const response = await nativeFetch(...args)
+      if (args[1].method === 'HEAD') controller.abort(new DOMException('probe cancelled', 'AbortError'))
+      return response
+    })
+    await assert.rejects(registeredTool().execute({ url: base }, { signal: controller.signal }),
+      { name: 'AbortError' })
+    assert.deepEqual(requests, ['HEAD'])
+  })
+}
+
+test('the request timeout still applies when the caller remains active', async (t) => {
+  const timeout = AbortSignal.timeout.bind(AbortSignal)
+  t.mock.method(AbortSignal, 'timeout', milliseconds => {
+    assert.equal(milliseconds, 10_000)
+    return timeout(25)
+  })
+  const base = await serve(t, () => {})
+  const controller = new AbortController()
+  await assert.rejects(registeredTool().execute({ url: base, method: 'GET' },
+    { signal: controller.signal }), { name: 'TimeoutError' })
+  assert.equal(controller.signal.aborted, false)
+})
