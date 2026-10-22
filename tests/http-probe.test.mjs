@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
+import { createServer as createRawServer } from 'node:net'
 import { setTimeout as delay } from 'node:timers/promises'
 import test from 'node:test'
 import { apply } from '../lib/index.js'
@@ -216,4 +217,82 @@ test('the request timeout still applies when the caller remains active', async (
   await assert.rejects(registeredTool().execute({ url: base, method: 'GET' },
     { signal: controller.signal }), { name: 'TimeoutError' })
   assert.equal(controller.signal.aborted, false)
+})
+
+for (const [method, expected] of [
+  ['delete', 'DELETE'], ['gEt', 'GET'], ['hEaD', 'HEAD'],
+  ['options', 'OPTIONS'], ['PoSt', 'POST'], ['put', 'PUT'],
+]) {
+  test(`Fetch-normalized ${method} is sent and reported as ${expected}`, async (t) => {
+    const requests = []
+    const base = await serve(t, (request, response) => {
+      requests.push(request.method)
+      response.writeHead(204)
+      response.end()
+    })
+    const result = await registeredTool().execute({ url: base, method })
+    assert.deepEqual(requests, [expected])
+    assert.equal(result.split('\n')[0], `${expected} ${base}/`)
+    assert.match(result, /status: 204 No Content/)
+  })
+}
+
+// node:http's parser rejects some otherwise valid method tokens. A minimal raw
+// HTTP fixture records the exact request method accepted by Fetch instead.
+async function serveRaw(t, requests) {
+  const sockets = new Set()
+  const server = createRawServer(socket => {
+    sockets.add(socket)
+    socket.once('close', () => sockets.delete(socket))
+    let buffered = ''
+    socket.on('data', data => {
+      buffered += data.toString('latin1')
+      if (!buffered.includes('\r\n\r\n')) return
+      requests.push(buffered.slice(0, buffered.indexOf(' ')))
+      socket.end('HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n')
+    })
+  })
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
+  t.after(async () => {
+    for (const socket of sockets) socket.destroy()
+    await new Promise(resolve => server.close(resolve))
+  })
+  return `http://127.0.0.1:${server.address().port}/`
+}
+
+for (const method of ['PATCH', 'patch', 'PROPFIND', 'propfind', 'pRoPfInD', 'M-SEARCH', 'm-search', 'ChIcKeN']) {
+  test(`case-sensitive method ${method} is sent and reported unchanged`, async (t) => {
+    const requests = []
+    const base = await serveRaw(t, requests)
+    const result = await registeredTool().execute({ url: base, method })
+    assert.deepEqual(requests, [method])
+    assert.equal(result.split('\n')[0], `${method} ${base}`)
+    assert.match(result, /status: 204 No Content/)
+  })
+}
+
+for (const status of [405, 501]) {
+  test(`lowercase head still retries a ${status} response as GET`, async (t) => {
+    const requests = []
+    const base = await serve(t, (request, response) => {
+      requests.push(request.method)
+      response.writeHead(request.method === 'HEAD' ? status : 204)
+      response.end()
+    })
+    const result = await registeredTool().execute({ url: base, method: 'head' })
+    assert.deepEqual(requests, ['HEAD', 'GET'])
+    assert.equal(result.split('\n')[0], `GET ${base}/`)
+    assert.match(result, /status: 204 No Content/)
+  })
+}
+
+test('Unicode lookalikes are rejected rather than converted to a different valid method', async (t) => {
+  const requests = []
+  const base = await serve(t, (request, response) => {
+    requests.push(request.method)
+    response.writeHead(204)
+    response.end()
+  })
+  await assert.rejects(registeredTool().execute({ url: base, method: 'poſt' }), { name: 'TypeError' })
+  assert.deepEqual(requests, [])
 })

@@ -31,7 +31,8 @@ export function apply(ctx: Context) {
       if (url.protocol !== 'http:' && url.protocol !== 'https:') {
         throw new Error(`http_probe only supports http(s) URLs, got: ${url.protocol}`)
       }
-      const method = (args.method ?? 'HEAD').toUpperCase()
+      // Fetch normalizes six common methods; other method tokens are case-sensitive.
+      const method = new Request(url, { method: args.method ?? 'HEAD' }).method
 
       const probe = async (m: string) => {
         callerSignal?.throwIfAborted()
