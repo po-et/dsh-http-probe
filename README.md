@@ -10,9 +10,13 @@ HEAD is the default; a 405 (method not allowed) or 501 (method not implemented) 
 
 Cancelling the Harness tool call also aborts its pending HTTP request and prevents a HEAD-to-GET retry. Each request still has its own 10-second timeout.
 
+If the response includes `Retry-After`, the probe reports the header value as received. It does not schedule another request.
+
 Method names follow Fetch: `DELETE`, `GET`, `HEAD`, `OPTIONS`, `POST` and `PUT` are normalized to uppercase. Other methods retain their exact casing, so `PATCH` and `patch` can probe different server behavior.
 
 取消 Harness 工具调用时，会同时中止尚未完成的 HTTP 请求，并阻止后续 GET 回退。每次请求仍保留独立的 10 秒超时。
+
+若响应含有 `Retry-After`，探针会报告响应头的原值，不会据此安排重试。
 
 方法名遵循 Fetch 规则：`DELETE`、`GET`、`HEAD`、`OPTIONS`、`POST` 和 `PUT` 会规范为大写，其它方法保留原始大小写，因此 `PATCH` 与 `patch` 可用于探测服务端不同的处理行为。
 
