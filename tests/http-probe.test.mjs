@@ -69,6 +69,18 @@ test('default HEAD keeps status and headers without a GET retry', async (t) => {
   assert.deepEqual(requests, ['HEAD'])
 })
 
+for (const [status, retryAfter] of [[429, '30'], [503, 'Wed, 21 Oct 2026 07:28:00 GMT']]) {
+  test(`reports Retry-After for HTTP ${status} without retrying`, async (t) => {
+    const fetch = t.mock.method(globalThis, 'fetch', async () =>
+      new Response(null, { status, headers: { 'Retry-After': retryAfter } }))
+
+    const result = await registeredTool().execute({ url: 'https://example.test' })
+
+    assert.ok(result.split('\n').includes(`retry-after: ${retryAfter}`))
+    assert.equal(fetch.mock.callCount(), 1)
+  })
+}
+
 for (const status of [405, 501]) {
   test(`explicit GET reports a ${status} without retrying`, async (t) => {
     const requests = []

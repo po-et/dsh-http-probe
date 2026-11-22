@@ -61,7 +61,7 @@ export function apply(ctx: Context) {
       }
 
       const { response, latencyMs } = result
-      const headers = ['content-type', 'server', 'cache-control', 'location']
+      const headers = ['content-type', 'server', 'cache-control', 'location', 'retry-after']
         .map((h) => [h, response.headers.get(h)] as const)
         .filter(([, v]) => v !== null)
         .map(([h, v]) => `${h}: ${v}`)
